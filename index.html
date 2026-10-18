@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Пароль. Генератор надёжных паролей</title>
+<style>
+:root{--red:#e30613;--ink:#111;--grey:#8a8a8a;--line:#111}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.4 "Helvetica Neue",Helvetica,Arial,sans-serif;color:var(--ink);background:#f2f2f0}
+.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:0 20px;max-width:1100px;margin:0 auto;padding:40px 24px}
+h1{grid-column:1/-1;font-size:clamp(56px,12vw,150px);line-height:.85;letter-spacing:-.05em;margin:0 0 32px;font-weight:700}
+h1 span{color:var(--red)}
+.out{grid-column:1/-1;border-top:6px solid var(--line);border-bottom:1px solid var(--line);padding:22px 0;display:flex;gap:16px;align-items:center}
+#pw{flex:1;font:500 clamp(22px,4vw,40px)/1.2 "SFMono-Regular",Menlo,Consolas,monospace;word-break:break-all;letter-spacing:.02em}
+#pw .d{color:var(--red)}#pw .s{color:#1d4ed8}
+.out button{font:700 14px Helvetica,Arial;border:0;background:var(--ink);color:#fff;padding:14px 18px;cursor:pointer;text-transform:uppercase;letter-spacing:.06em}
+.out button.alt{background:none;color:var(--ink);border:2px solid var(--ink)}
+.meter{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin:14px 0 6px}
+.meter i{height:8px;background:#ddd}
+.meter i.on{background:var(--ink)}.meter.weak i.on{background:var(--red)}
+.verdict{grid-column:1/-1;display:flex;justify-content:space-between;font-size:14px;color:var(--grey);margin-bottom:40px;flex-wrap:wrap;gap:8px}
+.verdict b{color:var(--ink)}
+.col{grid-column:span 6}
+.col h2{font-size:13px;text-transform:uppercase;letter-spacing:.12em;border-top:1px solid var(--line);padding-top:10px;margin:0 0 16px}
+.tabs{display:flex;gap:0;margin-bottom:22px}
+.tabs button{flex:1;font:700 15px Helvetica,Arial;padding:12px;border:2px solid var(--ink);background:none;cursor:pointer}
+.tabs button+button{border-left:0}
+.tabs button.on{background:var(--ink);color:#fff}
+.row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #d6d6d2}
+.row input[type=range]{width:55%;accent-color:var(--red)}
+.row output{font-weight:700;font-size:22px;min-width:2.5ch;text-align:right}
+.row input[type=checkbox]{width:20px;height:20px;accent-color:var(--ink)}
+.row input[type=text]{font:inherit;border:0;border-bottom:2px solid var(--ink);background:none;width:60px;text-align:center}
+.hist{list-style:none;padding:0;margin:0;font:14px/1.9 Menlo,Consolas,monospace}
+.hist li{display:flex;justify-content:space-between;border-bottom:1px solid #d6d6d2;cursor:pointer}
+.hist li:hover{color:var(--red)}
+.tips{font-size:15px;color:#444}
+.tips li{margin-bottom:8px}
+footer{grid-column:1/-1;margin-top:48px;font-size:13px;color:var(--grey);border-top:1px solid var(--line);padding-top:10px}
+:focus-visible{outline:3px solid var(--red);outline-offset:2px}
+@media(max-width:760px){.col{grid-column:1/-1}.out{flex-wrap:wrap}}
+</style>
+</head>
+<body>
+<div class="grid">
+  <h1>Пароль<span>.</span></h1>
+  <div class="out"><div id="pw" aria-live="polite"></div><button class="alt" id="regen" title="Пробел">Ещё</button><button id="copy">Копировать</button></div>
+  <div class="meter" id="meter"><i></i><i></i><i></i><i></i></div>
+  <div class="verdict"><span id="bits"></span><span id="crack"></span></div>
+
+  <section class="col">
+    <h2>Настройки</h2>
+    <div class="tabs" role="tablist"><button data-mode="chars" class="on" role="tab">Символы</button><button data-mode="words" role="tab">Фраза</button></div>
+    <div id="charOpts">
+      <label class="row">Длина <input type="range" id="len" min="6" max="64" value="18"><output id="lenOut">18</output></label>
+      <label class="row">Строчные a–z <input type="checkbox" id="lower" checked></label>
+      <label class="row">Заглавные A–Z <input type="checkbox" id="upper" checked></label>
+      <label class="row">Цифры 0–9 <input type="checkbox" id="digits" checked></label>
+      <label class="row">Символы !@#$%… <input type="checkbox" id="symbols" checked></label>
+      <label class="row">Без похожих (l, 1, O, 0) <input type="checkbox" id="noSimilar"></label>
+    </div>
+    <div id="wordOpts" hidden>
+      <label class="row">Слов <input type="range" id="words" min="3" max="10" value="5"><output id="wordsOut">5</output></label>
+      <label class="row">Разделитель <input type="text" id="sep" value="-" maxlength="2"></label>
+      <label class="row">С заглавной буквы <input type="checkbox" id="cap" checked></label>
+      <label class="row">Добавить число <input type="checkbox" id="num" checked></label>
+    </div>
+  </section>
+  <section class="col">
+    <h2>Последние</h2>
+    <ul class="hist" id="hist"></ul>
+    <h2 style="margin-top:28px">Коротко о безопасности</h2>
+    <ul class="tips">
+      <li>Длина важнее сложности: 20 случайных символов надёжнее 10 «хитрых».</li>
+      <li>Фразу из 5–6 случайных слов легко запомнить и почти невозможно подобрать.</li>
+      <li>Один пароль на один сайт. Храните их в менеджере паролей.</li>
+    </ul>
+  </section>
+  <footer>Пароли создаются прямо в браузере через crypto.getRandomValues и никуда не отправляются. История живёт только до закрытия вкладки.</footer>
+</div>
+<script>
+const $ = id => document.getElementById(id)
+const SETS = { lower: 'abcdefghijklmnopqrstuvwxyz', upper: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', digits: '0123456789', symbols: '!@#$%^&*()-_=+[]{};:,.?/' }
+const SIMILAR = /[il1IoO0|]/g
+// транслит, чтобы фразу принимали сайты, не понимающие кириллицу
+const WORDS = 'akula arbuz balkon banka bereg bilet bochka bulka chainik dozhd doroga drova dym ezh fonar gora gorod grusha gvozd igla izba kamen karta kaska klyuch kniga kolco kometa korova kot krug kuvshin lampa les lisa lodka luna luzha malina mayak med metla mish more most muha nebo nos obezyana ogon okno orel osen ozero palka pchela pero pesok petuh pirog plita polka poyas pugovica raketa reka roza ruchka ryba sad sapog sever sneg sobaka sol solnce sova stakan stena stol sumka tigr tropa trava tucha ulica utka vagon vedro veter vilka voda vorona yabloko yagoda yakor zamok zayac zerno zhuk zima zont'.split(' ')
+const rnd = n => { const a = new Uint32Array(1), lim = Math.floor(2 ** 32 / n) * n; do crypto.getRandomValues(a); while (a[0] >= lim); return a[0] % n }
+let mode = 'chars', history = []
+const esc = s => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
+
+function generate() {
+  if (mode === 'words') {
+    const n = +$('words').value, sep = $('sep').value
+    let parts = Array.from({ length: n }, () => WORDS[rnd(WORDS.length)])
+    if ($('cap').checked) parts = parts.map(w => w[0].toUpperCase() + w.slice(1))
+    if ($('num').checked) parts.push(String(rnd(90) + 10))
+    return { pw: parts.join(sep), bits: n * Math.log2(WORDS.length) + ($('num').checked ? Math.log2(90) : 0) }
+  }
+  const chosen = Object.keys(SETS).filter(k => $(k).checked)
+  if (!chosen.length) { $('lower').checked = true; chosen.push('lower') }
+  const sets = chosen.map(k => $('noSimilar').checked ? SETS[k].replace(SIMILAR, '') : SETS[k])
+  const pool = sets.join(''), len = +$('len').value
+  // гарантируем хотя бы один символ из каждого выбранного набора
+  const chars = sets.map(s => s[rnd(s.length)])
+  while (chars.length < len) chars.push(pool[rnd(pool.length)])
+  for (let i = chars.length - 1; i > 0; i--) { const j = rnd(i + 1); [chars[i], chars[j]] = [chars[j], chars[i]] }
+  return { pw: chars.slice(0, len).join(''), bits: len * Math.log2(pool.length) }
+}
+
+function crackTime(bits) {
+  const sec = 2 ** bits / 2 / 1e11 // 100 млрд попыток в секунду: мощная ферма видеокарт
+  if (sec < 1) return 'мгновенно'
+  const units = [['лет', 31557600], ['дней', 86400], ['часов', 3600], ['минут', 60], ['секунд', 1]]
+  for (const [name, s] of units) if (sec >= s) {
+    const v = sec / s
+    return v > 1e9 ? 'дольше, чем существует Вселенная' : `≈ ${v >= 1e6 ? (v / 1e6).toFixed(0) + ' млн' : Math.round(v).toLocaleString('ru-RU')} ${name}`
+  }
+}
+
+function show() {
+  const { pw, bits } = generate()
+  $('pw').innerHTML = [...pw].map(c => /\d/.test(c) ? `<span class="d">${c}</span>` : /[^a-z]/i.test(c) && mode === 'chars' ? `<span class="s">${esc(c)}</span>` : esc(c)).join('')
+  $('pw').dataset.value = pw
+  const level = bits < 40 ? 1 : bits < 64 ? 2 : bits < 90 ? 3 : 4
+  $('meter').querySelectorAll('i').forEach((el, i) => el.classList.toggle('on', i < level))
+  $('meter').classList.toggle('weak', level < 2)
+  $('bits').innerHTML = `Энтропия <b>${Math.round(bits)} бит</b>. ${['', 'Слабый', 'Средний', 'Надёжный', 'Очень надёжный'][level]}`
+  $('crack').innerHTML = `Подбор перебором: <b>${crackTime(bits)}</b>`
+  history.unshift(pw); history = history.slice(0, 8)
+  $('hist').innerHTML = history.map(h => `<li data-v="${esc(h)}"><span>${esc(h.length > 34 ? h.slice(0, 34) + '…' : h)}</span><span>${h.length}</span></li>`).join('')
+}
+
+async function copy(text) {
+  try { await navigator.clipboard.writeText(text) } catch { const t = document.createElement('textarea'); t.value = text; document.body.append(t); t.select(); document.execCommand('copy'); t.remove() }
+  $('copy').textContent = 'Готово'; setTimeout(() => $('copy').textContent = 'Копировать', 1200)
+}
+
+$('copy').onclick = () => copy($('pw').dataset.value)
+$('regen').onclick = show
+$('hist').onclick = e => { const li = e.target.closest('li'); if (li) copy(li.dataset.v) }
+document.querySelector('.tabs').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return
+  mode = b.dataset.mode
+  document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x === b))
+  $('charOpts').hidden = mode !== 'chars'; $('wordOpts').hidden = mode !== 'words'
+  show()
+}
+document.querySelectorAll('input').forEach(i => i.addEventListener('input', () => { $('lenOut').textContent = $('len').value; $('wordsOut').textContent = $('words').value; show() }))
+addEventListener('keydown', e => { if (e.code === 'Space' && e.target.tagName !== 'INPUT' && e.target.tagName !== 'BUTTON') { e.preventDefault(); show() } })
+show()
+</script>
+</body>
+</html>
